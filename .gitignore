@@ -1,0 +1,26 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Node.js dependencies and build output
+**/node_modules/
+**/dist/
+
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+**/appsettings.Local.json
+**/appsettings.*.local.json
+*.pem
+*.key
+*.pfx
+*.p12
+google-oauth-client-secret*.json
+work/
+
+# IDE and operating-system files
+.vs/
+.idea/
+Thumbs.db
+.DS_Store

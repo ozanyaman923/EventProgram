@@ -1,0 +1,10 @@
+# Repository-wide line-ending policy: keep text files as LF on every platform.
+* text=auto eol=lf
+
+# These files must never undergo text conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
