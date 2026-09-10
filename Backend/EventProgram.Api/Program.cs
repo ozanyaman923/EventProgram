@@ -1,4 +1,5 @@
 
+using EventProgram.Api.Authentication;
 using EventProgram.Infrastructure.DependencyInjection;
 using System.Text.Json.Serialization;
 
@@ -9,10 +10,12 @@ var connectionString = builder.Configuration.GetConnectionString("EventProgramDa
         "The EventProgramDatabase connection string is not configured.");
 
 builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddEventProgramAuthentication(builder.Configuration, builder.Environment);
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        options.JsonSerializerOptions.Converters.Add(
+            new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false)));
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -22,8 +25,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
-app.UseAuthorization(); 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

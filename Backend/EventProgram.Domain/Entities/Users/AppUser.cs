@@ -25,4 +25,13 @@ public sealed class AppUser
     public UserRole Role { get; private set; }
     public bool IsBlocked { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
+
+    public void UpdateGoogleProfile(string displayName, string email)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) throw new ArgumentException("A display name is required.", nameof(displayName));
+        if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("An email address is required.", nameof(email));
+
+        DisplayName = displayName.Trim();
+        Email = email.Trim();
+    }
 }

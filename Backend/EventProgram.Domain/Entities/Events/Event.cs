@@ -45,4 +45,15 @@ public sealed class Event
     public string? AccessPasswordHash { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
+
+    public void Publish()
+    {
+        if (Status != EventStatus.Draft)
+        {
+            throw new InvalidOperationException("Only draft events can be published.");
+        }
+
+        Status = EventStatus.Published;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
 }

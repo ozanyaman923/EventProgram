@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { getEventByShareCode, getPublicEvents } from './api/events'
-import type { EventSummary } from './types/event'
+import {
+  getAuthenticationStatus,
+  getCurrentUser,
+  loginWithGoogle,
+  logout,
+} from './api/authentication'
+import { createEvent, getEventByShareCode, getPublicEvents } from './api/events'
+import type { AuthenticatedUser } from './types/authentication'
+import type { EventSummary, EventVisibility } from './types/event'
 import './event-program.css'
 
 const demoPrivateShareCode = 'c8395aa8141c438d9c740627e8c493c3'
@@ -17,14 +24,35 @@ function formatDate(value: string) {
 export default function EventProgramApp() {
   const [events, setEvents] = useState<EventSummary[]>([])
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(null)
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null)
+  const [googleLoginConfigured, setGoogleLoginConfigured] = useState(false)
   const [shareCode, setShareCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [opening, setOpening] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void loadEvents()
+    void initialize()
   }, [])
+
+  async function initialize() {
+    await Promise.all([loadEvents(), loadAuthentication()])
+  }
+
+  async function loadAuthentication() {
+    try {
+      const [status, user] = await Promise.all([
+        getAuthenticationStatus(),
+        getCurrentUser(),
+      ])
+
+      setGoogleLoginConfigured(status.googleLoginConfigured)
+      setCurrentUser(user)
+    } catch {
+      setError('Oturum bilgisi yüklenemedi.')
+    }
+  }
 
   async function loadEvents() {
     try {
@@ -50,6 +78,43 @@ export default function EventProgramApp() {
     }
   }
 
+  async function handleLogout() {
+    try {
+      await logout()
+      setCurrentUser(null)
+    } catch (logoutError) {
+      setError(logoutError instanceof Error ? logoutError.message : 'Oturum kapatılamadı.')
+    }
+  }
+
+  async function handleCreateEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
+
+    try {
+      setCreating(true)
+      setError(null)
+      const capacityText = String(form.get('capacity') ?? '').trim()
+      const createdEvent = await createEvent({
+        title: String(form.get('title') ?? ''),
+        description: String(form.get('description') ?? ''),
+        startsAtUtc: new Date(String(form.get('startsAt') ?? '')).toISOString(),
+        endsAtUtc: new Date(String(form.get('endsAt') ?? '')).toISOString(),
+        capacity: capacityText ? Number(capacityText) : null,
+        visibility: String(form.get('visibility')) as EventVisibility,
+      })
+
+      formElement.reset()
+      setSelectedEvent(createdEvent)
+      await loadEvents()
+    } catch (creationError) {
+      setError(creationError instanceof Error ? creationError.message : 'Etkinlik oluşturulamadı.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   function handlePrivateAccess(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -61,9 +126,31 @@ export default function EventProgramApp() {
   return (
     <main className="app-shell">
       <section className="hero-panel">
-        <p className="eyebrow inverse">EVENTPROGRAM</p>
+        <div className="hero-account">
+          <p className="eyebrow inverse">EVENTPROGRAM</p>
+          {currentUser ? (
+            <div className="account-actions">
+              <span>{currentUser.displayName}</span>
+              <button className="outline-button compact-button" type="button" onClick={() => void handleLogout()}>
+                Çıkış yap
+              </button>
+            </div>
+          ) : (
+            <button
+              className="outline-button compact-button"
+              disabled={!googleLoginConfigured}
+              type="button"
+              onClick={loginWithGoogle}
+            >
+              Google ile giriş
+            </button>
+          )}
+        </div>
         <h1>Etkinlikleri görünür, katılımı anlamlı kıl.</h1>
         <p>Public etkinlikleri keşfet. Private etkinliklere davet bağlantınla eriş.</p>
+        {!googleLoginConfigured && (
+          <p className="configuration-note">Google girişi için geliştirme anahtarları henüz eklenmedi.</p>
+        )}
         <button className="outline-button" type="button" onClick={() => void openEvent(demoPrivateShareCode)}>
           Private demo etkinliğini aç
         </button>
@@ -80,7 +167,7 @@ export default function EventProgramApp() {
 
         {loading && <p className="status-message">Etkinlikler yükleniyor…</p>}
         {error && <p className="status-message error-message">{error}</p>}
-        {!loading && !error && (
+        {!loading && (
           <div className="event-grid">
             {events.map((event) => (
               <article className="event-card" key={event.id}>
@@ -97,6 +184,47 @@ export default function EventProgramApp() {
               </article>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="content-section organizer-card" aria-labelledby="create-event-heading">
+        <p className="eyebrow">ORGANİZATÖR</p>
+        <h2 id="create-event-heading">Kendi etkinliğini oluştur</h2>
+        {!currentUser ? (
+          <p>Etkinlik oluşturmak için Google ile giriş yapmalısın. Etkinlikleri görüntülemek için giriş gerekmez.</p>
+        ) : (
+          <form className="event-form" onSubmit={(event) => void handleCreateEvent(event)}>
+            <label>
+              Etkinlik adı
+              <input name="title" required maxLength={150} />
+            </label>
+            <label className="full-field">
+              Açıklama
+              <textarea name="description" required maxLength={5000} rows={4} />
+            </label>
+            <label>
+              Başlangıç
+              <input name="startsAt" type="datetime-local" required />
+            </label>
+            <label>
+              Bitiş
+              <input name="endsAt" type="datetime-local" required />
+            </label>
+            <label>
+              Kapasite (isteğe bağlı)
+              <input name="capacity" type="number" min={1} />
+            </label>
+            <label>
+              Görünürlük
+              <select name="visibility" defaultValue="Public">
+                <option value="Public">Public — herkes görebilir</option>
+                <option value="Private">Private — bağlantısı olan görebilir</option>
+              </select>
+            </label>
+            <button className="primary-button full-field" disabled={creating} type="submit">
+              {creating ? 'Oluşturuluyor…' : 'Etkinliği oluştur ve yayınla'}
+            </button>
+          </form>
         )}
       </section>
 
@@ -123,7 +251,10 @@ export default function EventProgramApp() {
           </div>
           <p>{selectedEvent.description}</p>
           <p className="event-date">{formatDate(selectedEvent.startsAtUtc)} — {formatDate(selectedEvent.endsAtUtc)}</p>
-          <div className="readonly-callout"><strong>Salt okunur moddasın.</strong><span>Oy vermek, soru sormak ve katılım bırakmak için Google ile giriş yakında eklenecek.</span></div>
+          <div className="readonly-callout">
+            <strong>{currentUser ? 'Oturumun açık.' : 'Salt okunur moddasın.'}</strong>
+            <span>Oy verme, soru sorma ve yorum özellikleri sonraki geliştirme paketlerinde eklenecek.</span>
+          </div>
         </section>
       )}
     </main>

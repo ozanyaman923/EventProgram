@@ -10,3 +10,12 @@ export interface EventSummary {
   visibility: EventVisibility
   shareCode: string
 }
+
+export interface CreateEventRequest {
+  title: string
+  description: string
+  startsAtUtc: string
+  endsAtUtc: string
+  capacity: number | null
+  visibility: EventVisibility
+}

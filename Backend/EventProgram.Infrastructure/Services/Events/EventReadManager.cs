@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventProgram.Infrastructure.Services.Events;
 
-public sealed class EventReadService(EventProgramDbContext dbContext) : IEventReadService
+public sealed class EventReadManager(EventProgramDbContext dbContext) : IEventReadService
 {
     public async Task<IReadOnlyList<EventSummary>> GetPublicEventsAsync(CancellationToken cancellationToken) =>
         await dbContext.Events.AsNoTracking()
@@ -22,7 +22,8 @@ public sealed class EventReadService(EventProgramDbContext dbContext) : IEventRe
             .Select(ToSummary())
             .SingleOrDefaultAsync(cancellationToken);
 
-    private static System.Linq.Expressions.Expression<Func<Event, EventSummary>> ToSummary() => eventItem => new EventSummary(
+    private static System.Linq.Expressions.Expression<Func<Event, EventSummary>> 
+        ToSummary() => eventItem => new EventSummary(
         eventItem.Id, eventItem.Title, eventItem.Description, eventItem.StartsAtUtc, eventItem.EndsAtUtc,
         eventItem.Capacity, eventItem.Visibility, eventItem.ShareCode);
 }
